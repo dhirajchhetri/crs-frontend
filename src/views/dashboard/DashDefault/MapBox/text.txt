@@ -1,0 +1,1038 @@
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { clusterLayer } from './layer';
+import Map, { GeolocateControl, Marker, NavigationControl, Source, Layer, ScaleControl, FullscreenControl, FillLayer } from 'react-map-gl';
+import { useDispatch, useSelector } from 'react-redux';
+import useSupercluster from 'use-supercluster';
+import locationLogo from '../../../../assets/images/logo/house.png';
+import Tooltip from 'react-bootstrap/Tooltip';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import { Popover, Row, Col, Button } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
+import { getCSRDataDetail } from '../../../../store/detail.actions';
+import { province } from '../../../../assets/geojson/province';
+import { district } from '../../../../assets/geojson/district';
+import { locallevel } from '../../../../assets/geojson/locallevel';
+import {
+    dashBoardFilterChange,
+    getCsrHHRegistrationData,
+    getDistricts,
+    getPalikas,
+    getTrancheData,
+    setSelectedDistricts,
+    setSelectedPalikas
+} from '../../../../store/dashboard.actions';
+import { getSelected, selected } from '../../../../store/selected.actions';
+import { bbox } from '@turf/turf';
+import { getDistrictData, getMapData } from '../../../../utils/mapData';
+import layerImage from '../../../../assets/images/layer-icon.jpg';
+import black from '../../../../assets/images/black.png';
+import street from '../../../../assets/images/default.png';
+import sattelite from '../../../../assets/images/sattelite.png';
+const Colors = [
+    {
+        id: '1',
+        color: 'lightblue'
+    },
+    {
+        id: '2',
+        color: 'lightblue'
+    },
+    {
+        id: '3',
+        color: 'lightblue'
+    },
+    {
+        id: '4',
+        color: 'lightblue'
+    },
+    {
+        id: '5',
+        color: 'lightblue'
+    },
+    {
+        id: '6',
+        color: 'lightblue'
+    },
+    {
+        id: '7',
+        color: 'lightblue'
+    }
+];
+
+export const dataLayer = {
+    id: 'data',
+    type: 'fill',
+    paint: {
+        'fill-color': {
+            property: 'id',
+            type: 'categorical',
+            stops: [
+                ['1', 'red'],
+                ['2', 'orange'],
+                ['3', 'blue'],
+                ['4', 'black'],
+                ['5', 'lightblue'],
+                ['6', 'lightblue'],
+                ['7', 'lightblue']
+            ]
+        },
+
+        'fill-opacity': 0.1,
+        'fill-outline-color': 'black'
+    },
+    layout: {
+        visibility: 'visible'
+    }
+};
+
+export default function MapBox() {
+    const dispatch = useDispatch();
+
+    const CsrHHRegistrationData = useSelector((state) => state.dashboardReducer.csrHHRegistrationData);
+    const [selected, setSelected] = useState({
+        currentSelected: undefined,
+        type: 'provinces',
+        previousSelected: undefined,
+        label: 'नेपाल'
+    });
+    const selectedDistricts = useSelector((state) => state.dashboardReducer.selectedDistricts);
+    dispatch(getSelected(selected));
+    const selecteds = useSelector((state) => state.selectedReducer.selected);
+    console.log('This is ', selecteds);
+    const [lng, setLng] = useState(84.3542);
+    const [lat, setLat] = useState(27.5291);
+    const [zoom, setZoom] = useState(9);
+    const [popupOpen, setPopupOpen] = useState(false);
+    const [parkData, setParkData] = useState();
+    const [hoverInfo, setHoverInfo] = useState(null);
+    const [layer, setLayer] = useState(dataLayer);
+    const [mapData, setMapData] = useState(province);
+    const [viewport, setViewport] = useState({
+        latitude: 28.2489136496,
+        longitude: 83.9158264002,
+        zoom: 6.8
+    });
+    const [mapStyle, setMapStyle] = useState('mapbox://styles/mapbox/streets-v9');
+    const [show, setShow] = useState(false);
+    const [layerShow, setLayerShow] = useState(false);
+
+    const handleHover = () => {
+        setShow(!show);
+    };
+    const handleLayerHover = () => {
+        setLayerShow(!layerShow);
+    };
+    const myRef = useRef();
+    const [number, setnumber] = useState([]);
+    const [scroll, setScroll] = useState(0);
+
+    const onScroll = () => {
+        const scrollY = window.scrollY; //Don't get confused by what's scrolling - It's not the window
+    };
+
+    useEffect(() => {
+        if (selectedDistricts.length === 1) {
+            if (selectedDistricts[0] == 'kaski') {
+                setSelected({
+                    type: 'local',
+                    currentSelected: 405,
+                    label: selectedDistricts[0]
+                });
+
+                setViewport({
+                    ...viewport,
+                    latitude: 28.2622,
+                    longitude: 84.0167,
+                    zoom: 10.8
+                });
+            } else if (selectedDistricts[0] == 'chitwan') {
+                console.log('chitwan selected');
+                setSelected({
+                    type: 'local',
+                    currentSelected: 313,
+                    label: selectedDistricts[0]
+                });
+                setViewport({
+                    latitude: 27.5291,
+                    longitude: 84.3542,
+                    zoom: 10.8
+                });
+            } else if (selectedDistricts[0] == 'lamjung') {
+                console.log('lamjung selected');
+                setSelected({
+                    type: 'local',
+                    currentSelected: 406,
+                    label: selectedDistricts[0]
+                });
+                setViewport({
+                    ...viewport,
+                    latitude: 28.2765,
+                    longitude: 84.3542,
+                    zoom: 10.8
+                });
+            } else if (selectedDistricts[0] == 'makwanpur') {
+                console.log('makwanpur selected');
+                setSelected({
+                    type: 'local',
+                    currentSelected: 312,
+                    label: selectedDistricts[0]
+                });
+                setViewport({
+                    ...viewport,
+                    latitude: 27.5546,
+                    longitude: 85.0233,
+                    zoom: 9.8
+                });
+            } else if (selectedDistricts[0] == 'tanahun') {
+                console.log('tanahun selected');
+                setSelected({
+                    type: 'local',
+                    currentSelected: 407,
+                    label: selectedDistricts[0]
+                });
+                setViewport({
+                    ...viewport,
+                    latitude: 27.9447,
+                    longitude: 84.227,
+                    zoom: 10.8
+                });
+            } else {
+                setViewport({
+                    ...viewport,
+                    latitude: 28.2489136496,
+                    longitude: 83.9158264002,
+                    zoom: 6.8
+                });
+            }
+        }
+    }, [selectedDistricts]);
+
+    const zoomTocenter = () => {
+        const feature = province.features[0];
+
+        if (feature && myRef.current) {
+            // calculate the bounding box of the feature
+            const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+
+            myRef.current.fitBounds(
+                [
+                    [minLng, minLat],
+                    [maxLng, maxLat]
+                ],
+                { padding: 40, duration: 1000 }
+            );
+
+            setTimeout(() => {
+                setnumber([minLng, minLat, maxLng, maxLat]);
+            }, 5000);
+        }
+    };
+
+    React.useEffect(() => {
+        setMapData(province);
+        setViewport({ ...viewport });
+    }, []);
+
+    const handleMapClick = (e) => {
+        console.log(e);
+        const { features } = e;
+        const feature = features && features[0];
+
+        if (feature) {
+            const provinceId = feature.properties.id.toString();
+            const label = feature.properties.label;
+            const DISTRICT = feature.properties.DISTRICT;
+            const Municiples = feature.properties.GaPa_NaPa;
+            const currentColor = Colors.find((x) => x.id === provinceId)?.color;
+            if (selected.type === 'province') {
+                const districdata = district.features.filter((x) => x.properties.PROVINCE === +provinceId);
+                setMapData({ type: 'FeatureCollection', features: [...districdata] });
+                setSelected({
+                    ...selected,
+                    type: 'district',
+                    currentSelected: +provinceId,
+                    label: label
+                });
+            }
+            if (selected.type === 'district') {
+                const localData = locallevel.features.filter((x) => x.properties.DISTRICT === feature.properties.DISTRICT);
+                console.log(localData, 'localdata');
+                setMapData({ type: 'FeatureCollection', features: [...localData] });
+                setSelected({
+                    ...selected,
+                    type: 'local',
+                    currentSelected: +provinceId,
+                    label: DISTRICT,
+                    previousSelected: +provinceId
+                });
+                console.log(DISTRICT.toLowerCase());
+                const district = DISTRICT ? DISTRICT.toLowerCase : '';
+                dispatch(dashBoardFilterChange([district]));
+            }
+            if (selected.type === 'local') {
+                const localData = locallevel.features.filter((x) => x.properties.id === feature.properties.id);
+                setMapData({ type: 'FeatureCollection', features: [...localData] });
+                setSelected({
+                    ...selected,
+                    type: 'ward',
+                    currentSelected: +provinceId,
+                    label: Municiples
+                });
+                dispatch(dashBoardFilterChange([DISTRICT.toLowerCase()], [Municiples.toLowerCase()]));
+            }
+            setLayer({
+                ...layer,
+                paint: {
+                    'fill-color': {
+                        property: 'title_en',
+                        type: 'categorical',
+                        stops: [],
+                        color: '#00ffff'
+                    },
+                    'fill-opacity': 0.5,
+                    'fill-outline-color': 'black'
+                },
+                mapStyle: 'mapbox://styles/mapbox/satellite-v9'
+            });
+
+            setLayer({
+                ...layer,
+                paint: {
+                    'fill-opacity': 0.5,
+                    'fill-outline-color': 'black'
+                }
+            });
+
+            if (feature && myRef.current) {
+                const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+                myRef.current.fitBounds(
+                    [
+                        [minLng, minLat],
+                        [maxLng, maxLat]
+                    ],
+                    { padding: 40, duration: 1000 }
+                );
+            }
+        }
+    };
+
+    const clearState = () => {
+        setMapData(province);
+        setLayer(dataLayer);
+        setSelected({ currentSelected: undefined, type: 'province', previousSelected: undefined, label: 'नेपाल' });
+        setViewport({
+            ...viewport,
+            latitude: 28.2489136496,
+            longitude: 83.9158264002,
+            zoom: 6.8
+        });
+    };
+
+    const crsData = CsrHHRegistrationData;
+    const points = crsData.map((data) => ({
+        type: 'Feature',
+        properties: { cluster: false, caseId: data.caseid, district: data.reg_district },
+        geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(data.longitude), parseFloat(data.latitude)]
+        }
+    }));
+
+    const bounds = myRef.current ? myRef.current.getMap().getBounds().toArray().flat() : null;
+    const { clusters, supercluster } = useSupercluster({
+        points,
+        bounds,
+        zoom: viewport.zoom,
+        options: { radius: 60, maxZoom: 20 }
+    });
+
+    console.log('map view port', viewport);
+    return (
+        <>
+            <Map
+                initialViewState={{
+                    ...viewport
+                }}
+                style={{ width: '100%', height: '600px' }}
+                mapboxAccessToken="pk.eyJ1IjoiYWJoaTExNSIsImEiOiJja3J0M3dyMmYzY3I5Mm9ydng4eDg2cmhnIn0.o7apw95emv8sY-lzt0qFIQ"
+                ref={myRef}
+                interactiveLayerIds={['data']}
+                // onMouseMove={onHover}
+                mapStyle={mapStyle}
+                attributionControl={false}
+                zoom={viewport.zoom}
+                // scrollZoom={false}
+                // zoomTocenter={zoomTocenter}
+                onMove={(evt) => setViewport(evt.viewState)}
+                doubleClickZoom={true}
+                // onClick={handleMapClick}
+                onScroll={handleMapClick}
+                // onClick={handleMapClick}
+            >
+                <Source type="geojson" data={mapData}>
+                    <Layer {...layer} />
+                </Source>
+                {selected.type === 'nepal' &&
+                    getMapData().map((x) => (
+                        <Marker key={x.id} longitude={(x.minLongitude + x.maxLongitude) / 2} latitude={(x.minLatitude + x.maxLatitude) / 2}>
+                            {<label>{x.label}</label>}
+                        </Marker>
+                    ))}
+                {(selected.type === 'province' || selected.type === 'district') &&
+                    getDistrictData(mapData).map((x) => (
+                        <Marker key={x.id} longitude={(x.minLongitude + x.maxLongitude) / 2} latitude={(x.minLatitude + x.maxLatitude) / 2}>
+                            {<p style={{ color: 'black', fontSize: '12px', fontWeight: 'bold' }}>{x.label}</p>}
+                        </Marker>
+                    ))}
+                {clusters.map((cluster) => {
+                    // every cluster point has coordinates
+
+                    const [longitude, latitude] = cluster.geometry.coordinates;
+                    // the point may be either a cluster or a crime point
+                    const { cluster: isCluster, point_count: pointCount } = cluster.properties;
+
+                    // we have a cluster to render
+                    if (isCluster) {
+                        return (
+                            <Marker key={`cluster-${cluster.id}`} latitude={latitude} longitude={longitude}>
+                                <div
+                                    className="cluster-marker"
+                                    style={{
+                                        width: `${5 + (pointCount / points.length) * 30}px`,
+                                        height: `${5 + (pointCount / points.length) * 30}px`
+                                    }}
+                                    onClick={() => {
+                                        const expansionZoom = Math.min(supercluster.getClusterExpansionZoom(cluster.id), 10);
+
+                                        setViewport({
+                                            ...viewport,
+                                            latitude,
+                                            longitude,
+                                            zoom: expansionZoom
+                                        });
+                                    }}
+                                >
+                                    {pointCount}
+                                </div>
+                            </Marker>
+                        );
+                    } else if (!isCluster) {
+                        return (
+                            <Marker key={`crime-${cluster.properties.caseid}`} latitude={latitude} longitude={longitude}>
+                                <OverlayTrigger
+                                    style={{ background: 'white' }}
+                                    delay={{ show: 300 }}
+                                    overlay={(props) => (
+                                        <Tooltip {...props}>
+                                            <Row>
+                                                <Col md={4}>
+                                                    <div className="image-detail">
+                                                        <img
+                                                            src="data:image/jpeg;base64,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"
+                                                            alt="csr data"
+                                                        />
+                                                    </div>
+                                                    <span style={{ color: 'black', textAlign: 'center' }}>Before</span>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <div className="image-detail">
+                                                        <img
+                                                            src="http://lgmis.trimax.com.np/storage/house/malika/thumb_400/front/1528519346742.jpg"
+                                                            alt="csr data"
+                                                        />
+                                                    </div>
+                                                    <span style={{ color: 'black', textAlign: 'center' }}>Current</span>
+                                                </Col>
+                                                <Col md={4}>
+                                                    <div className="image-detail">
+                                                        <img
+                                                            src="http://lgmis.trimax.com.np/storage/house/malika/thumb_400/front/1528519346742.jpg"
+                                                            alt="csr data"
+                                                        />
+                                                    </div>
+                                                    <span style={{ color: 'black', textAlign: 'center' }}>After</span>
+                                                </Col>
+                                                <Col md={12} style={{ color: 'black', textAlign: 'justify' }}>
+                                                    <br></br>
+                                                    <span>Name</span> :<br></br>
+                                                    <span>Sex</span> :<br></br>
+                                                    <span>PA.No </span>:{' '}
+                                                    {/* <span style={{ color: 'black', fontSize: '10px' }}>{cluster.properties.caseId}</span> */}
+                                                    <br></br>
+                                                    <br></br>
+                                                    {/* <Col md={3} style={{ marginTop: '10px', float: 'right', marginRight: '50px' }}>
+                                                        <Link to={`/detail/view/${cluster.properties.caseId}`}>
+                                                            <Button onClick={() => dispatch(getCSRDataDetail(cluster.properties.caseId))}>
+                                                                Detail
+                                                            </Button>
+                                                        </Link>
+                                                    </Col> */}
+                                                </Col>
+                                            </Row>
+                                        </Tooltip>
+                                    )}
+                                    // overlay={popover}
+                                    placement="bottom"
+                                >
+                                    <Link to={`/detail/view/${cluster.properties.caseId}`}>
+                                        <button className="crime-marker">
+                                            <img src={locationLogo} alt="csr data" />
+                                        </button>
+                                    </Link>
+                                </OverlayTrigger>
+                            </Marker>
+                        );
+                    }
+                })}
+                <GeolocateControl position="top-right" />
+                <FullscreenControl position="top-right" />
+                <NavigationControl position="top-right" />
+                <div
+                    class="mapboxgl-ctrl mapboxgl-ctrl-group"
+                    style={{
+                        width: '29px',
+                        right: 0,
+                        float: 'right',
+                        height: '30px',
+                        marginRight: '10px',
+                        marginTop: '200px',
+                        transition: '0.8s'
+                    }}
+                    onMouseEnter={handleLayerHover}
+                    onMouseLeave={handleLayerHover}
+                >
+                    <button class="mapboxgl-ctrl-layers" type="button" aria-label="Layers" aria-disabled="false">
+                        <span class="feather icon-layers" aria-hidden="true" title="Layers"></span>
+                    </button>
+                    {layerShow && (
+                        <div
+                            class="mapboxgl-ctrl mapboxgl-ctrl-group"
+                            style={{
+                                width: '280px',
+                                right: 0,
+                                float: 'right',
+                                height: '80px',
+                                padding: '10px',
+                                paddingRight: '10px',
+                                background: 'white',
+                                transition: '5s ease',
+                                marginRight: '30px',
+                                marginTop: '-28px',
+                                borderRadius: '5px'
+                                // marginRight: 'px'
+                            }}
+                        >
+                            <Row>
+                                <Col
+                                    md={3}
+                                    onClick={() => {
+                                        setMapStyle('mapbox://styles/mapbox/satellite-v9');
+                                    }}
+                                    className="active"
+                                >
+                                    <img src={sattelite} width={50} height={50} />
+                                    <label>Satellite</label>
+                                </Col>
+                                <Col
+                                    md={3}
+                                    onClick={() => {
+                                        setMapStyle('mapbox://styles/mapbox/streets-v9');
+                                    }}
+                                >
+                                    <img src={street} width={50} height={50} />
+                                    <label>Street</label>
+                                </Col>
+                                <Col
+                                    md={3}
+                                    onClick={() => {
+                                        setMapStyle('mapbox://styles/mapbox/outdoors-v9');
+                                    }}
+                                >
+                                    <img src={layerImage} width={50} height={50} />
+                                    <label>Outdoor</label>
+                                </Col>
+                                <Col
+                                    md={3}
+                                    onClick={() => {
+                                        setMapStyle('mapbox://styles/mapbox/dark-v9');
+                                    }}
+                                >
+                                    <img src={black} width={50} height={50} />
+                                    <label>Black</label>
+                                </Col>
+                            </Row>
+                        </div>
+                    )}
+                </div>
+
+                {/* <div className="layer" style={{ background: 'white', top: '0', right: '0' }}>
+                        <img src={layerImage} />
+                    </div> */}
+                <ScaleControl />
+            </Map>
+        </>
+    );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <Modal show={true} onHide={setMenu(false)}>
+                        <Modal.Header closeButton>
+                            <Modal.Title>Privacy Policy</Modal.Title>
+                        </Modal.Header>
+                        <Modal.Body>
+                            <React.Fragment>
+                                <Row>
+                                    <Col md={4}>
+                                        <Card>
+                                            <Card.Body>
+                                                <div class="d-flex flex-column align-items-center text-center">
+                                                    <div className="image" style={{ width: '200px', height: '200px' }}>
+                                                        <img
+                                                            src={csrSingleViewData?.reg_photo}
+                                                            alt={csrSingleViewData?.reg_name_head_hh}
+                                                            class="rounded-circle"
+                                                            width="100%"
+                                                            height="100%"
+                                                        ></img>
+                                                    </div>
+                                                    <div class="mt-3">
+                                                        <h4>{csrSingleViewData?.reg_name_head_hh}</h4>
+                                                        <p class="text-secondary mb-1">{csrSingleViewData?.reg_gender_head_hh}</p>
+                                                        <p class="text-muted font-size-sm">{csrSingleViewData?.reg_contact_number}</p>
+                                                        <Button class="btn btn-primary">{csrSingleViewData?.reg_age_head_hh}</Button>
+                                                        <Button class="btn btn-outline-primary">Edit</Button>
+                                                    </div>
+                                                </div>{' '}
+                                            </Card.Body>
+                                        </Card>
+                                    </Col>
+                                    <Col md={8}>
+                                        <Card className="detail-page-card">
+                                            <Tabs variant="pills" defaultActiveKey="home" className="mb-3">
+                                                <Tab eventKey="home" title="Participant Details">
+                                                    <Card.Body>
+                                                        <Row>
+                                                            <Col sm={3}>
+                                                                <h6 class="mb-0">Full Name</h6>
+                                                            </Col>
+                                                            <Col sm={9} className="text-secondary">
+                                                                {csrSingleViewData?.reg_name_head_hh}
+                                                            </Col>
+                                                        </Row>
+                                                        <hr></hr>
+                                                        <Row>
+                                                            <Col sm={3}>
+                                                                <h6 class="mb-0">Ethinicity</h6>
+                                                            </Col>
+                                                            <Col sm={9} className="text-secondary">
+                                                                {csrSingleViewData?.reg_ethnicity_head_hh}
+                                                            </Col>
+                                                        </Row>
+                                                        <hr></hr>
+                                                        <Row>
+                                                            <Col sm={3}>
+                                                                <h6 class="mb-0">Address</h6>
+                                                            </Col>
+                                                            <Col sm={9} className="text-secondary " style={{ textTransform: 'capitalize' }}>
+                                                                {csrSingleViewData?.reg_district} {csrSingleViewData?.reg_palika}{' '}
+                                                                {csrSingleViewData?.reg_current_ward} {csrSingleViewData?.reg_tole}
+                                                            </Col>
+                                                        </Row>
+
+                                                        <hr></hr>
+                                                        <Row>
+                                                            <Col sm={3}>
+                                                                <h6 class="mb-0">Average Income Of HH</h6>
+                                                            </Col>
+                                                            <Col sm={9} className="text-secondary " style={{ textTransform: 'capitalize' }}>
+                                                                {csrSingleViewData?.reg_avg_earn}
+                                                            </Col>
+                                                        </Row>
+                                                        <hr></hr>
+                                                    </Card.Body>
+                                                </Tab>
+                                            </Tabs>
+                                        </Card>
+
+                                        <Row></Row>
+                                    </Col>
+                                </Row>
+                                <Row>
+                                    <Col md={12}>
+                                        <Card className="detail-page-card">
+                                            <Tabs variant="pills" defaultActiveKey="reg" className="mb-3">
+                                                <Tab eventKey="reg" title="Registration Details">
+                                                    <Row>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Registration Date</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.date_of_registration}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Registration District</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_district}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0"> Reg Pa Number</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_pa_number}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">LiveStock</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_livestock}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">LiveStock Value</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_livestock_value}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                    </Row>
+                                                </Tab>
+
+                                                <Tab eventKey="teir" title="Tier Category">
+                                                    <Row>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Ethinicity</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_ethnicity_head_hh}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">PWD</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_hh_head_pwd}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Land Availability</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_available_land}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">LiveStock</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_livestock}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Age Of HH Heade</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_age_head_hh}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Gender Of HH</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {csrSingleViewData?.reg_gender_head_hh}
+                                                                    </Col>
+                                                                </Row>
+                                                            </Card.Body>
+                                                        </Col>
+                                                    </Row>
+                                                </Tab>
+                                                <Tab eventKey="support" title="Support Received">
+                                                    <Row>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Shelter</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {sta?.reg_receive_tranche}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Livelihood</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {lta?.liv_ffs_training_type}
+                                                                        <br></br>
+                                                                        {lta?.id_type_input}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">DDR</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_available_land} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Wash</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                    </Row>
+                                                </Tab>
+
+                                                <Tab eventKey="tranche" title="Tranche Received">
+                                                    <Row>
+                                                        <Col>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">1st Treanche</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {sta?.dd_receive_1st_tranche}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">2nd Treanche</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {sta?.dd_receive_2nd_tranche}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">3rd Treanche</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {sta?.dd_receive_3rd_tranche}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                    </Row>
+                                                </Tab>
+
+                                                <Tab eventKey="sup" title="Support Details">
+                                                    <Row>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Shelter</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.date_of_registration} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Top Up</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {vst?.ip_first_installment_cash_received}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0"> MLT</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {vst?.ip_receive_labour_support}
+                                                                        <br></br>
+                                                                        {vst?.ip_receive_material_support}
+                                                                        <br></br>
+                                                                        {vst?.ip_receive_transportantion_support}
+                                                                        <br></br>
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">FCH</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {vst?.ip_receive_cost_effective_house_support}
+                                                                        <br></br>
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Livelihood</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Input Received</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                        {ist?.id_type_input}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Training Received</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {ist?.liv_ffs_training_type}
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Water</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Drinking Water</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                        {/* {ist?.id_type_input} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">Irrigation Scheme</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {ist?.liv_ffs_training_type} */}
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Card.Body>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">DRR</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                                <Row>
+                                                                    <Col sm={7}>
+                                                                        <h6 class="mb-0">DRR Awareness</h6>
+                                                                    </Col>
+                                                                    <Col sm={5} className="text-secondary">
+                                                                        {/* {csrSingleViewData?.reg_livestock_value} */}
+                                                                        {/* {ist?.id_type_input} */}
+                                                                    </Col>
+                                                                </Row>
+                                                                <hr></hr>
+                                                            </Card.Body>
+                                                        </Col>
+                                                    </Row>
+                                                </Tab>
+                                            </Tabs>
+                                        </Card>
+
+                                        <Row></Row>
+                                    </Col>
+                                </Row>
+                            </React.Fragment>
+                        </Modal.Body>
+                        <Modal.Footer></Modal.Footer>
+                    </Modal>

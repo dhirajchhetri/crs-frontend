@@ -1,0 +1,463 @@
+
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { clusterLayer } from '../MapBox/layer';
+import Map, { GeolocateControl, Marker, NavigationControl, Source, Layer, ScaleControl, FullscreenControl, FillLayer } from 'react-map-gl';
+import { useDispatch, useSelector } from 'react-redux';
+import useSupercluster from 'use-supercluster';
+import locationLogo from '../../../../assets/images/logo/crslocation.jpg';
+import Tooltip from 'react-bootstrap/Tooltip';
+import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
+import { Popover, Row, Col, Button } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
+import { getCSRDataDetail } from '../../../../store/detail.actions';
+import { province } from '../../../../assets/geojson/province';
+import { district } from '../../../../assets/geojson/district';
+import { locallevel } from '../../../../assets/geojson/locallevel';
+import {
+    dashBoardFilterChange,
+    getCsrHHRegistrationData,
+    getDistricts,
+    getPalikas,
+    getTrancheData,
+    setSelectedDistricts,
+    setSelectedPalikas
+} from '../../../../store/dashboard.actions';
+import { bbox, feature } from '@turf/turf';
+
+const Colors = [
+    {
+        id: '1',
+        color: 'lightblue'
+    },
+    {
+        id: '2',
+        color: 'lightblue'
+    },
+    {
+        id: '3',
+        color: 'lightblue'
+    },
+    {
+        id: '4',
+        color: 'lightblue'
+    },
+    {
+        id: '5',
+        color: 'lightblue'
+    },
+    {
+        id: '6',
+        color: 'lightblue'
+    },
+    {
+        id: '7',
+        color: 'lightblue'
+    }
+];
+
+export const dataLayer = {
+    id: 'data',
+    type: 'fill',
+    paint: {
+        'fill-color': {
+            property: 'id',
+            type: 'categorical',
+            stops: [
+                ['1', 'red'],
+                ['2', 'orange'],
+                ['3', 'blue'],
+                ['4', 'orange'],
+                ['5', 'green'],
+                ['6', 'lightblue'],
+                ['7', 'pink']
+            ]
+        },
+
+        'fill-opacity': 0.5,
+        'fill-outline-color': 'black'
+    },
+    layout: {
+        visibility: 'visible'
+    }
+};
+
+export default function MapBox() {
+    const dispatch = useDispatch();
+
+    const CsrHHRegistrationData = useSelector((state) => state.dashboardReducer.csrHHRegistrationData);
+    const districts = useSelector((state) => state.dashboardReducer.districts);
+    const palikas = useSelector((state) => state.dashboardReducer.palikas);
+    const selectedDistricts = useSelector((state) => state.dashboardReducer.selectedDistricts);
+    const selectedPalikas = useSelector((state) => state.dashboardReducer.selectedPalikas);
+    const [selected, setSelected] = useState({ currentSelected: undefined, type: 'province', previousSelected: undefined, label: 'नेपाल' });
+    const [lng, setLng] = useState(84.3542);
+    const [lat, setLat] = useState(27.5291);
+    const [zoom, setZoom] = useState(9);
+    const [popupOpen, setPopupOpen] = useState(false);
+    const [parkData, setParkData] = useState();
+    const [hoverInfo, setHoverInfo] = useState(null);
+    const [layer, setLayer] = useState(dataLayer);
+    const [mapData, setMapData] = useState(province);
+    const [viewport, setViewport] = useState({
+        latitude: 28.2489136496,
+        longitude: 83.9158264002,
+        zoom: 6.8
+    });
+    const myRef = useRef();
+    const [number, setnumber] = useState([]);
+    const [scroll, setScroll] = useState(0);
+
+    const onScroll = () => {
+        const scrollY = window.scrollY; //Don't get confused by what's scrolling - It's not the window
+    };
+
+    const onHover = useCallback((event) => {
+        const {
+            features,
+            point: {x, y},
+        } = event;
+
+        if(features[0])
+    {const hoveredFeature = features && features[0];
+    const pid = parseInt(hoveredFeature.properties.id);
+    const newStops = [];
+    for (let index = 1; index < 7; index ++){
+        if(pid !== index){
+            newStops.push([
+                index.toString(),
+                Colors.find((x) => x.id === index.toString())?.color,
+            ])
+        }
+    }
+
+    setLayer({
+        ...layer,
+        paint: {
+            "fill-color": {
+                property: 'id',
+                type:'categorical',
+                stops: [[hoveredFeature.properties.id,'#2687a2'], ...newStops],
+            },
+            "fill-opacity":0.5,
+            'fill-outline-color': "white"
+        }
+    })
+
+    if(hoveredFeature){
+        setHoverInfo({...hoverInfo, features: hoveredFeature, x, y})
+    }}
+    }, [])
+
+    useEffect(() => {
+        dispatch(dashBoardFilterChange(selectedDistricts, selectedPalikas));
+    }, [selectedPalikas, selectedDistricts]);
+
+    useEffect(() => {
+        dispatch(getPalikas(selectedDistricts));
+        // dispatch(dashBoardFilterChange(selectedDistricts,selectedPalikas));
+    }, [selectedDistricts]);
+    const onDistrictSelectionChange = useCallback((e) => {
+        const districtSelected = e.target.value;
+        dispatch(setSelectedDistricts(districtSelected));
+    }, []);
+    const onPalikaSelectionChange = useCallback((e) => {
+        const palikasSelected = e.target.value;
+        dispatch(setSelectedPalikas(palikasSelected));
+    }, []);
+    // const onHover = useCallback((event) => {
+    //     const {
+    //         features,
+    //         point: { x, y }
+    //     } = event;
+    //     const hoveredFeature = features && features[0];
+
+    //     console.log(hoveredFeature, 'This is the ');
+    //     const pid = parseInt(hoveredFeature.properties.id);
+    //     const newStops = [];
+    //     for (let index = 1; index <= 7; index++) {
+    //         if (pid !== index) {
+    //             newStops.push([index.toString(), Colors.find((x) => x.id === index.toString()).color]);
+    //         }
+    //     }
+
+    //     setLayer({
+    //         ...layer,
+    //         paint: {
+    //             'fill-color': {
+    //                 property: 'id',
+    //                 type: 'categorical',
+    //                 stops: [[hoveredFeature.properties.id, '#2687a2'], ...newStops]
+    //             },
+    //             'fill-opacity': 0.5,
+    //             'fill-outline-color': 'white'
+    //         }
+    //     });
+    //     // prettier-ignore
+    //     if(hoveredFeature)
+    //       {
+
+    //         setHoverInfo( {...hoverInfo,feature: hoveredFeature, x, y});
+    //       }
+    // }, []);
+
+    const zoomTocenter = () => {
+        const feature = province.features[0];
+
+        if (feature && myRef.current) {
+            // calculate the bounding box of the feature
+            const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+
+            myRef.current.fitBounds(
+                [
+                    [minLng, minLat],
+                    [maxLng, maxLat]
+                ],
+                { padding: 40, duration: 1000 }
+            );
+
+            setTimeout(() => {
+                setnumber([minLng, minLat, maxLng, maxLat]);
+            }, 5000);
+        }
+    };
+
+    React.useEffect(() => {
+        // zoomTocenter();
+        // setMapData(province);
+        setMapData(province);
+        setViewport({ ...viewport });
+    }, []);
+
+    // React.useEffect(() => {
+    //     setLayer({ ...layer });
+    // }, [layer]);
+
+    // setLayer({ ...layer });
+    const handleMapClick = (e) => {
+        const { features } = e;
+        const feature = features && features[0];
+        const provinceId = feature.properties.id.toString();
+        const label = feature.properties.label;
+        const DISTRICT = feature.properties.DISTRICT;
+        const Municiples = feature.properties.GaPa_NaPa;
+        const currentColor = Colors.find((x) => x.id === provinceId)?.color;
+        if (selected.type === 'province') {
+            const districdata = district.features.filter((x) => x.properties.PROVINCE === +provinceId);
+            setMapData({ type: 'FeatureCollection', features: [...districdata] });
+            setSelected({
+                ...selected,
+                type: 'district',
+                currentSelected: +provinceId,
+                label: label
+            });
+        }
+        if (selected.type === 'district') {
+            const localData = locallevel.features.filter((x) => x.properties.DISTRICT === feature.properties.DISTRICT);
+            setMapData({ type: 'FeatureCollection', features: [...localData] });
+            setSelected({
+                ...selected,
+                type: 'local',
+                currentSelected: +provinceId,
+                label: DISTRICT
+            });
+        }
+        if (selected.type === 'local') {
+            const localData = locallevel.features.filter((x) => x.properties.id === feature.properties.id);
+            setMapData({ type: 'FeatureCollection', features: [...localData] });
+            setSelected({
+                ...selected,
+                type: 'ward',
+                currentSelected: +provinceId,
+                label: label
+            });
+        }
+        setLayer({
+            ...layer,
+            paint: {
+                'fill-color': {
+                    property: 'title_en',
+                    type: 'categorical',
+                    stops: [[provinceId, currentColor]]
+                },
+                'fill-opacity': 0.5,
+                'fill-outline-color': 'black'
+            }
+        });
+
+        setLayer({
+            ...layer,
+            paint: {
+                'fill-opacity': 0.5,
+                'fill-outline-color': 'black'
+            }
+        });
+
+        if (feature && myRef.current) {
+            const [minLng, minLat, maxLng, maxLat] = bbox(feature);
+            myRef.current.fitBounds(
+                [
+                    [minLng, minLat],
+                    [maxLng, maxLat]
+                ],
+                { padding: 40, duration: 1000 }
+            );
+        }
+    };
+
+    console.log(selected);
+    const clearState = () => {
+        setMapData(province);
+        setLayer(dataLayer);
+        setSelected({ currentSelected: undefined, type: 'province', previousSelected: undefined, label: 'नेपाल' });
+        setViewport({
+            ...viewport,
+            latitude: 28.2489136496,
+            longitude: 83.9158264002,
+            zoom: 6.8
+        });
+    };
+
+    const crsData = CsrHHRegistrationData;
+    const points = crsData.map((data) => ({
+        type: 'Feature',
+        properties: { cluster: false, caseId: data.caseid, district: data.reg_district },
+        geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(data.longitude), parseFloat(data.latitude)]
+        }
+    }));
+
+    const bounds = myRef.current ? myRef.current.getMap().getBounds().toArray().flat() : null;
+    const { clusters, supercluster } = useSupercluster({
+        points,
+        bounds,
+        zoom: viewport.zoom,
+        options: { radius: 60, maxZoom: 20 }
+    });
+
+    return (
+        <>
+            <Button onClick={clearState}>Back to main map</Button>
+            <Map
+                initialViewState={{
+                    latitude: viewport.latitude,
+                    longitude: viewport.longitude,
+                    zoom: 6
+                }}
+                style={{ width: '100%', height: '600px' }}
+                mapboxAccessToken="pk.eyJ1IjoiYWJoaTExNSIsImEiOiJja3J0M3dyMmYzY3I5Mm9ydng4eDg2cmhnIn0.o7apw95emv8sY-lzt0qFIQ"
+                ref={myRef}
+                interactiveLayerIds={['data']}
+                // onMouseMove={onHover}
+                attributionControl={false}
+                // scrollZoom={false}
+                onMove={(evt) => setViewport(evt.viewState)}
+                onMouseMove={onHover}
+                doubleClickZoom={true}
+                onClick={handleMapClick}
+                // onScroll={onscroll}
+                // onClick={handleMapClick}
+            >
+                <Source type="geojson" data={mapData}>
+                    <Layer {...layer} />
+                </Source>
+                {clusters.map((cluster) => {
+                    // every cluster point has coordinates
+                    console.log(cluster.geometry.coordinates);
+                    console.log(cluster.options);
+
+                    const [longitude, latitude] = cluster.geometry.coordinates;
+                    // the point may be either a cluster or a crime point
+                    const { cluster: isCluster, point_count: pointCount } = cluster.properties;
+
+                    // we have a cluster to render
+                    if (isCluster) {
+                        return (
+                            <Marker key={`cluster-${cluster.id}`} latitude={latitude} longitude={longitude}>
+                                <div
+                                    className="cluster-marker"
+                                    style={{
+                                        width: `${5 + (pointCount / points.length) * 20}px`,
+                                        height: `${5 + (pointCount / points.length) * 20}px`
+                                    }}
+                                    onClick={() => {
+                                        const expansionZoom = Math.min(supercluster.getClusterExpansionZoom(cluster.id), 20);
+                                        // myRef.current.setZoom(expansionZoom);
+                                        // myRef.current.panTo({ lat: latitude, lng: longitude });
+                                        setViewport({
+                                            ...viewport,
+                                            latitude,
+                                            longitude,
+                                            zoom: expansionZoom
+
+                                            // transitionDuration: 'auto'
+                                        });
+                                    }}
+                                >
+                                    {pointCount}
+                                </div>
+                            </Marker>
+                        );
+                    }
+                    return (
+                        <Marker key={`crime-${cluster.properties.caseid}`} latitude={latitude} longitude={longitude}>
+                            <OverlayTrigger
+                                delay={{ hide: 1200, show: 300 }}
+                                overlay={(props) => (
+                                    <Tooltip {...props}>
+                                        <Row
+                                            style={{ width: '240px', textAlign: 'center', background: 'white', border: '1px solid black' }}
+                                        >
+                                            <Col md={4}>
+                                                <span style={{ color: 'black', textAlign: 'center' }}>Before</span>
+                                                <img src={locationLogo} alt="csr data" width={60} />
+                                            </Col>
+                                            <Col md={4}>
+                                                <span style={{ color: 'black', textAlign: 'center' }}>Current</span>
+
+                                                <img src={locationLogo} alt="csr data" width={60} />
+                                            </Col>
+                                            <Col md={4}>
+                                                <span style={{ color: 'black', textAlign: 'center' }}>After</span>
+                                                <img src={locationLogo} alt="csr data" width={60} />
+                                            </Col>
+                                        </Row>
+                                        <Row
+                                            style={{
+                                                width: '240px',
+                                                paddingTop: '20px',
+                                                padding: '20px',
+                                                justifyContent: 'center',
+                                                background: 'white',
+                                                border: '1px solid black'
+                                            }}
+                                        >
+                                            <span style={{ color: 'black' }}>{cluster.properties.caseId}</span>
+                                            <br></br>
+
+                                            <Link to={`/detail/view/${cluster.properties.caseId}`}>
+                                                <Button onClick={() => dispatch(getCSRDataDetail(cluster.properties.caseId))}>
+                                                    Additional information
+                                                </Button>
+                                            </Link>
+                                        </Row>
+                                    </Tooltip>
+                                )}
+                                // overlay={popover}
+                                placement="bottom"
+                            >
+                                <button className="crime-marker">
+                                    <img src={locationLogo} alt="csr data" />
+                                </button>
+                            </OverlayTrigger>
+                        </Marker>
+                    );
+                })}
+                <GeolocateControl position="top-left" />
+                <FullscreenControl position="top-left" />
+                <NavigationControl position="top-left" />
+                <ScaleControl />
+            </Map>
+        </>
+    );
+}
